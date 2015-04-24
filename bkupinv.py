@@ -64,8 +64,9 @@ def inventory_dir(directory, excludes_rel, output_file):
                         mtime = os.path.getmtime(full_path)
                         size = os.path.getsize(full_path)
                         fhash = hash_file(full_path)
+                        rel_path = os.path.relpath(full_path, directory)
                         output_file.write('%s,"%s",%d,%d\n' % 
-                                          (json.dumps(full_path),fhash,size,mtime))
+                                          (json.dumps(rel_path),fhash,size,mtime))
                 except IOError as e:
                     print "I/O error({0}): {1}".format(e.errno, e.strerror)
 
@@ -83,9 +84,9 @@ def inventory_config(config):
         base_path = path['path']
         excl = path['excludes']
         t = path['type']
-        print "type is %s" % (t)
+        print "Generating inventory  for type is %s" % (base_path)
         dt = datetime.now()
-        short_ts = dt.strftime("%Y-%m-%d_%H:%M:%S")
+        short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
         iso_ts = dt.isoformat("T")
         # inventory this path
         inventory_prefix = hostname+"_"+path_name.replace(" ", "_")+"_"+short_ts
@@ -101,6 +102,7 @@ def inventory_config(config):
             inv_md = {'hostname':hostname,
                       'bkupinv_version':'0.0.1',
                       'name': path_name,
+                      'root': base_path,
                       'timestamp':iso_ts,
                       'duration_sec': round(dur,2),
                       'type': t}
