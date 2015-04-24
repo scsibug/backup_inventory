@@ -1,0 +1,14 @@
+{
+  "global": {
+    "hostname" : "my-host"
+  },
+  "paths": [
+    {
+      "name" : "laptop-home",
+      "description": "Home directory of my-host",
+      "path" : "/Users/greg",
+      "excludes": ["Library/Caches"],
+      "type":"master"
+    }
+  ]
+}
