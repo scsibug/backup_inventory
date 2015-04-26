@@ -10,6 +10,8 @@ import time
 from datetime import datetime
 import json
 
+low_cpu = True # Add a sleep so we don't burn a core 100% when doing an inventory.
+
 # Create a unique identifier for the snapshot.
 # suggestions: hostname-yyyy-mm-dd-hh-mm-ss
 
@@ -32,9 +34,10 @@ def hash_file(filename):
    with open(filename,'rb') as file:
        chunk = 0
        while chunk != b'':
-           # read 128K chunks
-           chunk = file.read(128*1024)
+           chunk = file.read((1024*1024)+8)
            h.update(chunk)
+           if (low_cpu):
+               time.sleep(.01)
    return h.hexdigest()
 
 def read_config(file):
@@ -73,18 +76,22 @@ def inventory_dir(directory, excludes_rel, output_file):
 def inventory_config(config):
     """Inventory items from a given configuration."""
     # get global configuration options
-    hostname = socket.gethostname()
     try:
         hostname = config['global']['hostname']
     except Exception:
-        pass
+        hostname = socket.gethostname()
     # Read paths list
     for path in config['paths']:
         path_name = path['name']
         base_path = path['path']
         excl = path['excludes']
         t = path['type']
-        print "Generating inventory  for type is %s" % (base_path)
+        try:
+            rep_factor = path['replication_factor']
+        except KeyError:
+            rep_factor = 1
+        path_uuid = path['uuid'] # Gen with import uid;uuid.uuid4()
+        print "Generating inventory for: %s" % (base_path)
         dt = datetime.now()
         short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
         iso_ts = dt.isoformat("T")
@@ -104,6 +111,7 @@ def inventory_config(config):
                       'name': path_name,
                       'root': base_path,
                       'timestamp':iso_ts,
+                      'replication_factor': rep_factor,
                       'duration_sec': round(dur,2),
                       'type': t}
             md_output.write(json.dumps(inv_md))

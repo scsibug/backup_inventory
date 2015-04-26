@@ -4,11 +4,13 @@
   },
   "paths": [
     {
+      "uuid" : "3a023f94-f354-4a5a-b758-53ed76a22005",
       "name" : "laptop-home",
       "description": "Home directory of my-host",
       "path" : "/Users/greg",
       "excludes": ["Library/Caches"],
-      "type":"master"
+      "type":"master",
+      "replication_factor":1
     }
   ]
 }
