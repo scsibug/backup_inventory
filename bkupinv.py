@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 import json
 
-low_cpu = True # Add a sleep so we don't burn a core 100% when doing an inventory.
+low_cpu = False # Add a sleep so we don't burn a core 100% when doing an inventory.
 
 # Create a unique identifier for the snapshot.
 # suggestions: hostname-yyyy-mm-dd-hh-mm-ss
@@ -55,6 +55,8 @@ def inventory_dir(directory, excludes_rel, output_file):
     # expand excludes into full paths?
     excludes = map((lambda x: os.path.join(directory,x)), excludes_rel)
     for root, dirs, files in os.walk(directory):
+        this_relpath = os.path.relpath(root,directory)
+        print "checking %s" % this_relpath
         if (root in excludes):
 #            print "excluding %s" % root
 #            print "dirs are %s" % dirs
