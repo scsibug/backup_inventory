@@ -15,6 +15,7 @@ import psycopg2
 import json
 import re
 import datetime
+import time
 import csv
 
 database_name = sys.argv[1]
@@ -34,8 +35,23 @@ all_inv_files = [ f for f in os.listdir(inventory_directory) if os.path.isfile(o
 # we want all the files which begin with "inv_md" and end with json
 all_inv_md_files = [f for f in all_inv_files if (f.startswith("inv_md") and f.endswith(".json"))]
 
+def add_file_ref_prep(conn):
+    with conn.cursor() as cur:
+        cur.execute(
+            """prepare hashplan as
+        INSERT INTO hashes(hash) SELECT decode($1,'hex') WHERE NOT EXISTS (SELECT 1 FROM hashes WHERE hash=decode($1,'hex'))""")
+        cur.execute(
+            """prepare filerefplan as
+        INSERT INTO file_references(rel_path) SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM file_references WHERE rel_path=$1)""")
+        cur.execute(
+            """prepare invitemplan as
+        INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT $1, h.id, f.id, $2, $3 from hashes h, file_references f where h.hash = decode($4,'hex') and f.rel_path = $5)""")
+
 # Get a connection
 conn = psycopg2.connect(database=database_name, user=database_user)
+# Add prepared statements
+add_file_ref_prep(conn)
+
 # from http://stackoverflow.com/questions/127803/how-to-parse-iso-formatted-date-in-python
 def from_utc(utcTime,fmt="%Y-%m-%dT%H:%M:%S.%f+00:00"):
     """
@@ -93,10 +109,14 @@ def create_inventory_root(conn, inventory):
 
 def add_file_ref(cur,run_id,fp,fhash,fsize,fmodified):
     #print "adding file: %s" % (fp,)
-    cur.execute("INSERT INTO hashes(hash) SELECT decode(%s,'hex') WHERE NOT EXISTS (SELECT 1 FROM hashes WHERE hash=decode(%s,'hex'))",(fhash,fhash))
-    cur.execute("INSERT INTO file_references(rel_path) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM file_references WHERE rel_path=%s)",(fp,fp))
-    cur.execute("INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT %s, h.id, f.id, %s, %s from hashes h, file_references f where h.hash = decode(%s,'hex') and f.rel_path = %s)",
-                (run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
+    #cur.execute("INSERT INTO hashes(hash) SELECT decode(%s,'hex') WHERE NOT EXISTS (SELECT 1 FROM hashes WHERE hash=decode(%s,'hex'))",(fhash,fhash))
+    hash_ex = cur.mogrify("execute hashplan (%s)",(fhash,))
+    #cur.execute("INSERT INTO file_references(rel_path) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM file_references WHERE rel_path=%s)",(fp,fp))
+    fr_ex = cur.mogrify("execute filerefplan (%s)",(fp,))
+    #cur.execute("INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT %s, h.id, f.id, %s, %s from hashes h, file_references f where h.hash = decode(%s,'hex') and f.rel_path = %s)",
+    #            (run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
+    it_ex = cur.mogrify("execute invitemplan (%s, %s, %s, %s, %s)",(run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
+    cur.execute(";".join([hash_ex, fr_ex, it_ex]))
 
 for inv_md_rel in all_inv_md_files:
     print "======== importing '%s' ========" %inv_md_rel
@@ -128,8 +148,10 @@ for inv_md_rel in all_inv_md_files:
         print "ignoring this run, already in database."
         continue
     # Insert hash values & filenames
+    insert_count = 0
     with open(inv_filename, 'r') as inv_file:
         with conn.cursor() as cur:
+            start = time.time()
             inv_reader = csv.reader(inv_file, delimiter=',', quotechar='\"')
             for row in inv_reader:
                 fp = row[0]
@@ -137,6 +159,16 @@ for inv_md_rel in all_inv_md_files:
                 fsize = row[2]
                 fmodified = row[3]
                 add_file_ref(cur,run_id,fp,fhash,fsize,fmodified)
+                insert_count = insert_count + 1
+                if (insert_count % 10000 == 0):
+#                    sys.stdout.write(".")
+#                    conn.commit()
+                    end = time.time()
+                    dur = (end-start)/1000.0
+                    print "%d rows in : %f msec" % (insert_count,round(dur,2))
+                    sys.stdout.flush()
+                    start = time.time() # restart timer
     conn.commit()
+    print "Finished with import"
 
     
