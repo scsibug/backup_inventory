@@ -45,7 +45,7 @@ def add_file_ref_prep(conn):
         INSERT INTO file_references(rel_path) SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM file_references WHERE rel_path=$1)""")
         cur.execute(
             """prepare invitemplan as
-        INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT $1, h.id, f.id, $2, $3 from hashes h, file_references f where h.hash = decode($4,'hex') and f.rel_path = $5)""")
+        INSERT INTO inventory_items(inventory_runs, hash, file, modified, filesize) (SELECT $1, h.id, f.id, $2, $3 from hashes h, file_references f where h.hash = decode($4,'hex') and f.rel_path = $5)""")
 
 # Get a connection
 conn = psycopg2.connect(database=database_name, user=database_user)
@@ -65,10 +65,10 @@ def create_inventory_run(conn, root_id, ts_utc, duration, version):
     try:
         cur = conn.cursor()
         # Check if this run already exists
-        cur.execute("SELECT root_path FROM inventory_run WHERE root_path = %s AND tstamp = %s", (root_id, ts_utc))
+        cur.execute("SELECT root_path FROM inventory_runs WHERE root_path = %s AND tstamp = %s", (root_id, ts_utc))
         existing_run = cur.fetchone()
         if (existing_run is None):
-            cur.execute("INSERT INTO inventory_run (root_path, tstamp, duration, version) VALUES (%s, %s, %s, %s) RETURNING id",
+            cur.execute("INSERT INTO inventory_runs (root_path, tstamp, duration, version) VALUES (%s, %s, %s, %s) RETURNING id",
                         (root_id,
                          ts_utc,
                          duration,
@@ -87,11 +87,11 @@ def create_inventory_root(conn, inventory):
      try:
          cur = conn.cursor()
          print inventory["uuid"]
-         cur.execute("SELECT id FROM inventory_root WHERE uuid=%s", (inventory["uuid"],))
+         cur.execute("SELECT id FROM inventory_roots WHERE uuid=%s", (inventory["uuid"],))
          found_root = cur.fetchone()
          if (found_root is None):
              print "need to create root"
-             cur.execute("INSERT INTO inventory_root (uuid, hostname, name, path, description, type, rep_factor) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+             cur.execute("INSERT INTO inventory_roots (uuid, hostname, name, path, description, type, rep_factor) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                          (inventory["uuid"],
                           inventory["hostname"],
                           inventory["name"],
@@ -161,11 +161,9 @@ for inv_md_rel in all_inv_md_files:
                 add_file_ref(cur,run_id,fp,fhash,fsize,fmodified)
                 insert_count = insert_count + 1
                 if (insert_count % 10000 == 0):
-#                    sys.stdout.write(".")
-#                    conn.commit()
                     end = time.time()
-                    dur = (end-start)/1000.0
-                    print "%d rows in : %f msec" % (insert_count,round(dur,2))
+                    dur = (end-start)/10.0  # convert to ms, * 10,000 rows 
+                    print "%d rows in : %.2f msec" % (insert_count,dur)
                     sys.stdout.flush()
                     start = time.time() # restart timer
     conn.commit()
