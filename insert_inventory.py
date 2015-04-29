@@ -92,10 +92,11 @@ def create_inventory_root(conn, inventory):
          print e
 
 def add_file_ref(cur,run_id,fp,fhash,fsize,fmodified):
-    print "adding file/hash %s" % (fp,)
+    #print "adding file: %s" % (fp,)
     cur.execute("INSERT INTO hashes(hash) SELECT decode(%s,'hex') WHERE NOT EXISTS (SELECT 1 FROM hashes WHERE hash=decode(%s,'hex'))",(fhash,fhash))
     cur.execute("INSERT INTO file_references(rel_path) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM file_references WHERE rel_path=%s)",(fp,fp))
-    #cur.execute("INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) SELECT %s, rel_path, 
+    cur.execute("INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT %s, h.id, f.id, %s, %s from hashes h, file_references f where h.hash = decode(%s,'hex') and f.rel_path = %s)",
+                (run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
 
 for inv_md_rel in all_inv_md_files:
     print "======== importing '%s' ========" %inv_md_rel
@@ -133,8 +134,8 @@ for inv_md_rel in all_inv_md_files:
             for row in inv_reader:
                 fp = row[0]
                 fhash = row[1]
-                fsize = row[1]
-                fmodified = row[2]
+                fsize = row[2]
+                fmodified = row[3]
                 add_file_ref(cur,run_id,fp,fhash,fsize,fmodified)
     conn.commit()
 
