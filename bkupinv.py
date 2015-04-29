@@ -57,7 +57,7 @@ def inventory_dir(directory, excludes_rel, output_file):
     excludes = map((lambda x: os.path.join(directory,x)), excludes_rel)
     for root, dirs, files in os.walk(directory):
         this_relpath = os.path.relpath(root,directory)
-        print "checking %s" % this_relpath
+        print "checking %s" % this_relpath.encode('utf-8')
         if (root in excludes):
 #            print "excluding %s" % root
 #            print "dirs are %s" % dirs
