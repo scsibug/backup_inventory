@@ -45,7 +45,7 @@ def add_file_ref_prep(conn):
         INSERT INTO file_references(rel_path) SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM file_references WHERE rel_path=$1)""")
         cur.execute(
             """prepare invitemplan as
-        INSERT INTO inventory_items(inventory_runs, hash, file, modified, filesize) (SELECT $1, h.id, f.id, $2, $3 from hashes h, file_references f where h.hash = decode($4,'hex') and f.rel_path = $5)""")
+        INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT $1, h.id, f.id, $2, $3 from hashes h, file_references f where h.hash = decode($4,'hex') and f.rel_path = $5)""")
 
 # Get a connection
 conn = psycopg2.connect(database=database_name, user=database_user)
