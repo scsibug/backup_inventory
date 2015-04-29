@@ -8,6 +8,7 @@ import hashlib
 import socket
 import time
 from datetime import datetime
+import pytz
 import json
 
 low_cpu = False # Add a sleep so we don't burn a core 100% when doing an inventory.
@@ -87,6 +88,7 @@ def inventory_config(config):
         path_name = path['name']
         base_path = path['path']
         excl = path['excludes']
+        description = path['description']
         t = path['type']
         try:
             rep_factor = path['replication_factor']
@@ -94,9 +96,9 @@ def inventory_config(config):
             rep_factor = 1
         path_uuid = path['uuid'] # Gen with import uid;uuid.uuid4()
         print "Generating inventory for: %s" % (base_path)
-        dt = datetime.now()
+        dt = datetime.now(pytz.timezone('UTC'))
         short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
-        iso_ts = dt.isoformat("T")
+        iso_ts = dt.isoformat()
         # inventory this path
         inventory_prefix = hostname+"_"+path_name.replace(" ", "_")+"_"+short_ts
         start = time.time()
@@ -112,6 +114,8 @@ def inventory_config(config):
                       'bkupinv_version':'0.0.1',
                       'name': path_name,
                       'root': base_path,
+                      'description': description,
+                      'uuid': path_uuid,
                       'timestamp':iso_ts,
                       'replication_factor': rep_factor,
                       'duration_sec': round(dur,2),
