@@ -152,7 +152,7 @@ for inv_md_rel in all_inv_md_files:
     with open(inv_filename, 'r') as inv_file:
         with conn.cursor() as cur:
             start = time.time()
-             inv_reader = csv.reader(inv_file, delimiter=',', quotechar='\"')
+            inv_reader = csv.reader(inv_file, delimiter=',', quotechar='\"')
             for row in inv_reader:
                 fp = unicode(row[0], 'utf-8')
                 fhash = row[1]
