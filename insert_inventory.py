@@ -103,7 +103,6 @@ def create_inventory_root(conn, inventory):
                           inventory["type"],
                           inventory["replication_factor"]))
              new_root = cur.fetchone()
-             conn.commit()
              return new_root[0]
          else: 
              return found_root[0]
