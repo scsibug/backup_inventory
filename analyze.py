@@ -12,7 +12,6 @@ database_user = sys.argv[2]
 conn = psycopg2.connect(database=database_name, user=database_user)
 
 def pg_utcnow():
-    import psycopg2
     return datetime.utcnow().replace(
         tzinfo=psycopg2.tz.FixedOffsetTimezone(offset=0, name=None))
 
@@ -25,6 +24,8 @@ def header(s):
 with conn.cursor() as cur:
     # Roots and runtimes
     header("Roots and Recent Runtimes")
+    cur.execute("""select now()""")
+    pg_now = cur.fetchone()[0]
     cur.execute("""select tstamp,duration,hostname,name,type from latest_inventory_runs lr INNER JOIN inventory_roots r
                 ON lr.root_path=r.id order by tstamp""")
     results = cur.fetchall()
@@ -34,9 +35,11 @@ with conn.cursor() as cur:
         host = r[2]
         name = r[3]
         type = r[4]
-        sys.stdout.write("  %s@%s (%s)" % (name,host,type))
+        fmt = '   {0:.<30}{1:.<15}'
+        host_info = "%s@%s" % (name,host)
+        sys.stdout.write(fmt.format(host_info,type))
         n = pg_utcnow()
-        sys.stdout.write(" (last update: %s)" % str(n - last_checked))
+        sys.stdout.write(" (last update: %s)" % str(abs(last_checked-n)))
         sys.stdout.write("\n")
     header("Sizes")
     cur.execute("""SELECT sum(filesize), count(distinct(hash)), count(distinct(file)), count(distinct(i.id)) FROM

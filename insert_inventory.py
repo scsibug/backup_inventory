@@ -15,6 +15,7 @@ import psycopg2
 import json
 import re
 import datetime
+import pytz
 import time
 import csv
 
@@ -59,7 +60,10 @@ def from_utc(utcTime,fmt="%Y-%m-%dT%H:%M:%S.%f+00:00"):
     """
     # TODO: properly handle timezone data
     # change datetime.datetime to time, return time.struct_time type
-    return datetime.datetime.strptime(utcTime, fmt)
+    t = datetime.datetime.strptime(utcTime, fmt)
+    t.replace(tzinfo=pytz.utc)
+    print "original time: %s new time: %s" % (utcTime, t)
+    return t
 
 def create_inventory_run(conn, root_id, ts_utc, duration, version):
     try:
@@ -107,15 +111,9 @@ def create_inventory_root(conn, inventory):
          print e
 
 def add_file_ref(cur,run_id,fp,fhash,fsize,fmodified):
-    #print "adding file: %s" % (fp,)
-    #cur.execute("INSERT INTO hashes(hash) SELECT decode(%s,'hex') WHERE NOT EXISTS (SELECT 1 FROM hashes WHERE hash=decode(%s,'hex'))",(fhash,fhash))
     hash_ex = cur.mogrify("execute hashplan (%s)",(fhash,))
-    #cur.execute("INSERT INTO file_references(rel_path) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM file_references WHERE rel_path=%s)",(fp,fp))
     fr_ex = cur.mogrify("execute filerefplan (%s)",(fp,))
-    #cur.execute("INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT %s, h.id, f.id, %s, %s from hashes h, file_references f where h.hash = decode(%s,'hex') and f.rel_path = %s)",
-    #            (run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
     it_ex = cur.mogrify("execute invitemplan (%s, %s, %s, %s, %s)",(run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
-
     cur.execute(";".join([hash_ex, fr_ex, it_ex]))
 
 for inv_md_rel in all_inv_md_files:

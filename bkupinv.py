@@ -78,8 +78,6 @@ def inventory_dir(directory, excludes_rel, output_file):
                         fhash = hash_file(full_path)
                         rel_path = os.path.relpath(full_path, directory)
                         csv_writer.writerow( (rel_path.encode('utf-8'), fhash, size, mtime))
-#                        output_file.write('%s,"%s",%d,%d\n' % 
-#                                          (json.dumps(rel_path),fhash,size,mtime))
                 except csv.Error as e:
                    sys.exit('file %s: %s' % (output_file.name, e))
                 except IOError as e:
