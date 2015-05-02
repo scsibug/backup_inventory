@@ -154,7 +154,7 @@ for inv_md_rel in all_inv_md_files:
             start = time.time()
              inv_reader = csv.reader(inv_file, delimiter=',', quotechar='\"')
             for row in inv_reader:
-                fp = row[0]
+                fp = unicode(row[0], 'utf-8')
                 fhash = row[1]
                 fsize = row[2]
                 fmodified = row[3]
