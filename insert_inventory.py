@@ -74,7 +74,6 @@ def create_inventory_run(conn, root_id, ts_utc, duration, version):
                          duration,
                          version))
             new_run = cur.fetchone()
-            conn.commit()
             return new_run[0]
         else:
             print "Run %s already exists" % existing_run[0]
@@ -116,6 +115,7 @@ def add_file_ref(cur,run_id,fp,fhash,fsize,fmodified):
     #cur.execute("INSERT INTO inventory_items(inventory_run, hash, file, modified, filesize) (SELECT %s, h.id, f.id, %s, %s from hashes h, file_references f where h.hash = decode(%s,'hex') and f.rel_path = %s)",
     #            (run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
     it_ex = cur.mogrify("execute invitemplan (%s, %s, %s, %s, %s)",(run_id, datetime.datetime.utcfromtimestamp(float(fmodified)), fsize, fhash,fp))
+
     cur.execute(";".join([hash_ex, fr_ex, it_ex]))
 
 for inv_md_rel in all_inv_md_files:
@@ -152,7 +152,7 @@ for inv_md_rel in all_inv_md_files:
     with open(inv_filename, 'r') as inv_file:
         with conn.cursor() as cur:
             start = time.time()
-            inv_reader = csv.reader(inv_file, delimiter=',', quotechar='\"')
+             inv_reader = csv.reader(inv_file, delimiter=',', quotechar='\"')
             for row in inv_reader:
                 fp = row[0]
                 fhash = row[1]

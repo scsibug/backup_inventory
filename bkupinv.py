@@ -10,8 +10,13 @@ import time
 from datetime import datetime
 import pytz
 import json
+import csv 
 
-low_cpu = False # Add a sleep so we don't burn a core 100% when doing an inventory.
+# Add a sleep so we don't burn a core 100% when doing an inventory.
+low_cpu = False
+
+# CSV Dialect
+csv.register_dialect('Inventory', delimiter=',',doublequote=False,quotechar='"',lineterminator='\n',escapechar='\\',quoting=csv.QUOTE_ALL)
 
 # Create a unique identifier for the snapshot.
 # suggestions: hostname-yyyy-mm-dd-hh-mm-ss
@@ -53,6 +58,7 @@ def read_config(file):
 # excludes is a list of relative paths from absolute that we should discard.
 def inventory_dir(directory, excludes_rel, output_file):
     """Create the inventory for a given directory, writing results to the given output file."""
+    csv_writer = csv.writer(output_file, 'Inventory')
     # expand excludes into full paths?
     excludes = map((lambda x: os.path.join(directory,x)), excludes_rel)
     for root, dirs, files in os.walk(directory):
@@ -67,12 +73,15 @@ def inventory_dir(directory, excludes_rel, output_file):
                 full_path = os.path.join(root, file)
                 try:
                     if ((not os.path.islink(full_path)) and os.path.isfile(full_path)):
-                        mtime = os.path.getmtime(full_path)
+                        mtime = int(os.path.getmtime(full_path))
                         size = os.path.getsize(full_path)
                         fhash = hash_file(full_path)
                         rel_path = os.path.relpath(full_path, directory)
-                        output_file.write('%s,"%s",%d,%d\n' % 
-                                          (json.dumps(rel_path),fhash,size,mtime))
+                        csv_writer.writerow( (rel_path, fhash, size, mtime))
+#                        output_file.write('%s,"%s",%d,%d\n' % 
+#                                          (json.dumps(rel_path),fhash,size,mtime))
+                except csv.Error as e:
+                   sys.exit('file %s: %s' % (output_file.name, e))
                 except IOError as e:
                     print "I/O error({0}): {1}".format(e.errno, e.strerror)
 
@@ -111,7 +120,7 @@ def inventory_config(config):
             # hostname, timestamp, duration, path
             dur = end-start
             inv_md = {'hostname':hostname,
-                      'bkupinv_version':'0.0.1',
+                      'bkupinv_version':'0.0.2',
                       'name': path_name,
                       'root': base_path,
                       'description': description,
@@ -120,6 +129,7 @@ def inventory_config(config):
                       'replication_factor': rep_factor,
                       'duration_sec': round(dur,2),
                       'type': t}
+            
             md_output.write(json.dumps(inv_md))
         print "Completed inventory of "+path_name
 

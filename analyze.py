@@ -19,7 +19,6 @@ def pg_utcnow():
 def header(s):
     sys.stdout.write("========== %s ==============\n" % s)
 
-
 ##### Summary #####
 # How many files, hashes, and what is the overall size of the latest
 # snapshot across all roots?
@@ -52,4 +51,5 @@ with conn.cursor() as cur:
     print "Total Items: %s" % locale.format("%d", total_items, grouping=True)
     print "Distinct Relative Paths: %s" % locale.format("%d", distinct_files, grouping=True)
     print "Distinct Hashes: %s" % locale.format("%d", distinct_hashes, grouping=True)
-
+    header("Corruptions")
+    

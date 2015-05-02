@@ -52,15 +52,23 @@ CREATE INDEX inventory_items_file ON inventory_items (file);
 CREATE VIEW latest_inventory_runs AS 
   SELECT * FROM inventory_runs r1 WHERE r1.tstamp >now()-interval '60 days'
     AND r1.tstamp=(SELECT max(r2.tstamp) FROM inventory_runs r2 where r1.id=r2.id);
-
-CREATE VIEW latest_inventory AS
-  SELECT * FROM latest_inventory_runs runs, inventory_items items, file_references files
-    WHERE items.inventory_run = runs.id AND items.file=files.id 
-
-
-select items.id, root.path, files.rel_path, items.modified, items.filesize, root.rep_factor  from latest_inventory_runs runs, inventory_items items, file_references files, inventory_roots root where items.inventory_run = runs.id and items.file=files.id and runs.root_path=root.id limit 10;
-
-select items.id, root.path, files.rel_path, items.modified, items.filesize as filesize, root.rep_factor  from latest_inventory_runs runs, inventory_items items, file_references files, inventory_roots root where items.inventory_run = runs.id and items.file=files.id and runs.root_path=root.id order by filesize desc;
+-- Most recent inventory run, regardless of age
+CREATE VIEW all_latest_inventory_runs AS 
+  SELECT * FROM inventory_runs r1 WHERE
+    r1.tstamp=(SELECT max(r2.tstamp) FROM inventory_runs r2 where r1.id=r2.id);
 
 -- Sum all file sizes
-select sum(filesize) from (select items.id, root.path, files.rel_path, items.modified, items.filesize as filesize, root.rep_factor  from latest_inventory_runs runs, inventory_items items, file_references files, inventory_roots root where items.inventory_run = runs.id and items.file=files.id and runs.root_path=root.id ) fs ;
+--select sum(filesize) from (select items.id, root.path, files.rel_path, items.modified, items.filesize as filesize, root.rep_factor  from latest_inventory_runs runs, inventory_items items, file_references files, inventory_roots root where items.inventory_run = runs.id and items.file=files.id and runs.root_path=root.id ) fs ;
+
+-- Find hash mismatches
+create temporary view inventory_items_w_root AS SELECT i.id,r.root_path, i.inventory_run, i.hash, i.file,i.modified,i.filesize FROM inventory_items i INNER JOIN inventory_runs r ON i.inventory_run=r.id;
+select * from inventory_items_w_root i1 where i1.id in (select id from inventory_items_w_root i2 where i1.root_path=i2.root_path and i1.modified=i2.modified and i1.hash!=i2.hash);
+
+
+create temporary view latest_inventory_items_w_root AS SELECT i.id,r.root_path, i.inventory_run, i.hash, i.file,i.modified,i.filesize FROM inventory_items i INNER JOIN all_latest_inventory_runs r ON i.inventory_run=r.id;
+create temporary view inventory_items_w_root AS SELECT i.id,r.root_path, i.inventory_run, i.hash, i.file,i.modified,i.filesize FROM inventory_items i INNER JOIN inventory_runs r ON i.inventory_run=r.id;
+select * from latest_inventory_items_w_root i1 where i1.id in (select id from inventory_items_w_root i2 where i1.root_path=i2.root_path and i1.modified=i2.modified and i1.hash!=i2.hash);
+
+
+
+
