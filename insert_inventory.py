@@ -58,12 +58,10 @@ def from_utc(utcTime,fmt="%Y-%m-%dT%H:%M:%S.%f+00:00"):
     """
     Convert UTC time string to time.struct_time
     """
-    # TODO: properly handle timezone data
     # change datetime.datetime to time, return time.struct_time type
+    # Add missing UTC tz
     t = datetime.datetime.strptime(utcTime, fmt)
-    t.replace(tzinfo=pytz.utc)
-    print "original time: %s new time: %s" % (utcTime, t)
-    return t
+    return t.replace(tzinfo=pytz.utc)
 
 def create_inventory_run(conn, root_id, ts_utc, duration, version):
     try:
