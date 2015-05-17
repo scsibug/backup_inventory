@@ -102,9 +102,9 @@ for (fp,bytes) in all_sizes:
             relpath = os.path.relpath(fp, prefix)
             full_dest = os.path.join(destination,relpath)
             print "copying %s to %s" % (fp, full_dest)
-            #if not os.path.exists(os.path.dirname(full_dest)):
-            #    os.makedirs(os.path.dirname(full_dest))
-            #shutil.copy2(fp,full_dest)
+            if not os.path.exists(os.path.dirname(full_dest)):
+                os.makedirs(os.path.dirname(full_dest))
+            shutil.copy2(fp,full_dest)
             if write_inventory:
                 inventory_file.write(fp+"\n")
     elif stop_skip:
