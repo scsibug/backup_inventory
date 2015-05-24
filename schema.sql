@@ -51,11 +51,11 @@ CREATE INDEX inventory_items_file ON inventory_items (file);
 -- roots that haven't been updated in 60 days drop off.
 CREATE VIEW latest_inventory_runs AS 
   SELECT * FROM inventory_runs r1 WHERE r1.tstamp >now()-interval '60 days'
-    AND r1.tstamp=(SELECT max(r2.tstamp) FROM inventory_runs r2 where r1.id=r2.id);
+    AND r1.tstamp=(SELECT max(r2.tstamp) FROM inventory_runs r2 where r1.root_path=r2.root_path);
 -- Most recent inventory run, regardless of age
 CREATE VIEW all_latest_inventory_runs AS 
   SELECT * FROM inventory_runs r1 WHERE
-    r1.tstamp=(SELECT max(r2.tstamp) FROM inventory_runs r2 where r1.id=r2.id);
+    r1.tstamp=(SELECT max(r2.tstamp) FROM inventory_runs r2 where r1.root_path=r2.root_path);
 
 -- Sum all file sizes
 --select sum(filesize) from (select items.id, root.path, files.rel_path, items.modified, items.filesize as filesize, root.rep_factor  from latest_inventory_runs runs, inventory_items items, file_references files, inventory_roots root where items.inventory_run = runs.id and items.file=files.id and runs.root_path=root.id ) fs ;

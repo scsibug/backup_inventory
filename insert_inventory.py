@@ -22,6 +22,7 @@ import csv
 database_name = sys.argv[1]
 database_user = sys.argv[2]
 inventory_directory = os.path.abspath(sys.argv[3])
+csv.register_dialect('Inventory', delimiter=',',doublequote=False,quotechar='"',lineterminator='\n',escapechar='\\',quoting=csv.QUOTE_ALL)
 
 # Ensure inventory-directory exists
 if (not os.path.isdir(inventory_directory)):
@@ -147,7 +148,7 @@ for inv_md_rel in all_inv_md_files:
     with open(inv_filename, 'r') as inv_file:
         with conn.cursor() as cur:
             start = time.time()
-            inv_reader = csv.reader(inv_file, delimiter=',', quotechar='\"')
+            inv_reader = csv.reader(inv_file, 'Inventory')
             for row in inv_reader:
                 fp = unicode(row[0], 'utf-8')
                 fhash = row[1]
