@@ -102,6 +102,9 @@ def inventory_config(config):
         except KeyError:
             rep_factor = 1
         path_uuid = path['uuid'] # Gen with import uid;uuid.uuid4()
+        if (not os.path.isdir(base_path)):
+           print "Could not find %s, skipping" % base_path
+           continue
         print "Generating inventory for: %s" % (base_path)
         dt = datetime.now(pytz.timezone('UTC'))
         short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
