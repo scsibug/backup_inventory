@@ -80,10 +80,16 @@ with conn.cursor() as cur:
     for (run_id, root_name, hostname) in results:
         # We want to find de-duped size for each master
         cur.execute("""select sum(filesize) from (select distinct on (hash)  hash, filesize from inventory_items i INNER JOIN all_latest_inventory_runs r ON i.inventory_run=%s and i.inventory_run=r.id ORDER BY hash) x""", (run_id,))
-        r = cur.fetchone()
-        fmt = '   {0:.<30}{1:<15}'
+        master_size = cur.fetchone()[0]
+        # How many hashes are contained in latest sources other than this one?
+        cur.execute("""select sum(filesize) from (select * from (select distinct on (hash)  hash, filesize from inventory_items i INNER JOIN all_latest_inventory_runs r ON i.inventory_run!=%s and i.inventory_run=r.id order by hash) x intersect select * from (select distinct on (hash)  hash, filesize from inventory_items i INNER JOIN all_latest_inventory_runs r ON i.inventory_run=%s and i.inventory_run=r.id order by hash) y) z""", (run_id,run_id));
+        master_backed_up_size = cur.fetchone()[0]
+        fmt = '   {0:.<30}{1:<15}{2:.30}'
         host_info = "%s / %s" % (hostname, root_name)
-        sys.stdout.write(fmt.format(host_info,hr_size(r[0])) + "\n")
+        sys.stdout.write(fmt.format(host_info,hr_size(master_size),hr_size(master_size-master_backed_up_size)+" not backed up"))
+        sys.stdout.write("\n")
+        # How many bytes are contained in latest sources other than this one?
+
     header("Corruptions")
     print "  todo"
     
