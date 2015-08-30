@@ -10,10 +10,15 @@ import time
 from datetime import datetime
 import pytz
 import json
-import csv 
+import csv
+from distutils.spawn import find_executable
+import subprocess
 
 # Add a sleep so we don't burn a core 100% when doing an inventory.
 low_cpu = False
+
+# Find shasum executable for better performance
+shasum_path = find_executable("shasum")
 
 # CSV Dialect
 csv.register_dialect('Inventory', delimiter=',',doublequote=False,quotechar='"',lineterminator='\n',escapechar='\\',quoting=csv.QUOTE_ALL)
@@ -75,7 +80,12 @@ def inventory_dir(directory, excludes_rel, output_file):
                     if ((not os.path.islink(full_path)) and os.path.isfile(full_path)):
                         mtime = int(os.path.getmtime(full_path))
                         size = os.path.getsize(full_path)
-                        fhash = hash_file(full_path)
+                        if (size <= 10*1000*1000 or (not shasum_path)):
+                           # Use python to calculate hash only when file is 10MB or less
+                           fhash = hash_file(full_path)
+                        else:
+                           shasum_output = subprocess.check_output([shasum_path, "-a", "256", full_path])
+                           fhash = shasum_output.split()[0]
                         rel_path = os.path.relpath(full_path, directory)
                         csv_writer.writerow( (rel_path.encode('utf-8'), fhash, size, mtime))
                 except csv.Error as e:
