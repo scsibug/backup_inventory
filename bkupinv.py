@@ -102,9 +102,13 @@ def inventory_config(config):
         hostname = socket.gethostname()
     # Read paths list
     for path in config['paths']:
+       # Path not required for archives
         path_name = path['name']
         base_path = path['path']
-        excl = path['excludes']
+        image_hash = path.get('image_hash')
+        inv_file = path.get('inventory_file')
+        
+        excl = path.get('excludes')
         description = path['description']
         t = path['type']
         try:
@@ -112,10 +116,20 @@ def inventory_config(config):
         except KeyError:
             rep_factor = 1
         path_uuid = path['uuid'] # Gen with import uid;uuid.uuid4()
-        if (not os.path.isdir(base_path)):
+        # If there is an inventory_file, image_hash, and type is 'archive';
+        # Treat this as removable media
+        if (inv_file and image_hash and t == "archive"):
+           # copy inventory files to a temp location
+           # unmount disk
+           # checksum device
+           # if checksum matches, create metadata files and rename inventory files.
+           print "Getting pre-built inventory from disc"
+           #
+        elif (not os.path.isdir(base_path)):
            print "Could not find %s, skipping" % base_path
            continue
-        print "Generating inventory for: %s" % (base_path)
+        else:
+           print "Generating inventory for: %s" % (base_path)
         dt = datetime.now(pytz.timezone('UTC'))
         short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
         iso_ts = dt.isoformat()
