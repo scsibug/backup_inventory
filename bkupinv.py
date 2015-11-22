@@ -13,6 +13,8 @@ import json
 import csv
 from distutils.spawn import find_executable
 import subprocess
+import tempfile
+import shutil
 
 # Add a sleep so we don't burn a core 100% when doing an inventory.
 low_cpu = False
@@ -68,7 +70,7 @@ def inventory_dir(directory, excludes_rel, output_file):
     excludes = map((lambda x: os.path.join(directory,x)), excludes_rel)
     for root, dirs, files in os.walk(directory):
         this_relpath = os.path.relpath(root,directory)
-        print "checking %s" % this_relpath.encode('utf-8')
+        #print "checking %s" % this_relpath.encode('utf-8')
         if (root in excludes):
 #            print "excluding %s" % root
 #            print "dirs are %s" % dirs
@@ -103,11 +105,14 @@ def inventory_config(config):
     # Read paths list
     for path in config['paths']:
        # Path not required for archives
+        dur = None
         path_name = path['name']
         base_path = path['path']
-        image_hash = path.get('image_hash')
+        image_hash = path.get('image_hash') # SHA256 hash of image
+        image_size = path.get('image_size') # Size of image in bytes
+        image_block_size = path.get('image_block_size')
+        # TODO: default block size?
         inv_file = path.get('inventory_file')
-        
         excl = path.get('excludes')
         description = path['description']
         t = path['type']
@@ -119,31 +124,55 @@ def inventory_config(config):
         # If there is an inventory_file, image_hash, and type is 'archive';
         # Treat this as removable media
         if (inv_file and image_hash and t == "archive"):
-           # copy inventory files to a temp location
-           # unmount disk
-           # checksum device
-           # if checksum matches, create metadata files and rename inventory files.
            print "Getting pre-built inventory from disc"
-           #
+           # copy inventory files to a temp location
+           temp_dir = tempfile.mkdtemp(prefix='bkupinv')
+           shutil.copy(inv_file, temp_dir)
+           # Find the disk
+           # Run df inv_file, and get the last word on the last line.
+           df_all = subprocess.check_output(["df",inv_file])
+           # Get the last token of the second line
+           df_disk = df_all.split("\n")[1].split(" ")
+           disk_dev = df_disk[0]
+           disk_path = df_disk[-1]
+           # unmount disk
+           subprocess.call(["hdiutil", "unmount", disk_path])
+           # checksum device
+           # TODO: check if pv command exists, don't use it if not available
+           cmd = "dd if=%s count=%s ibs=%s | pv -tpreb | shasum -a 256" % (disk_dev, image_size/image_block_size, image_block_size)
+           print cmd
+           start = time.time()
+           disk_hash_out = subprocess.check_output([cmd], shell=True).split(" ")[0]
+           end = time.time()
+           dur = end-start
+           print "remounting disk"
+           subprocess.call(["hdiutil", "mount", disk_dev])
+           # if checksum matches, create metadata files and rename inventory files.
+           print "checking that disc checksum (%s) matches expected (%s)" % (disk_hash_out,image_hash)
+           if (disk_hash_out == image_hash):
+              print "checksum matched"
+           else:
+              sys.exit('checksum failed!')
+           print "done with checksum of disk"
         elif (not os.path.isdir(base_path)):
            print "Could not find %s, skipping" % base_path
            continue
         else:
            print "Generating inventory for: %s" % (base_path)
-        dt = datetime.now(pytz.timezone('UTC'))
-        short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
-        iso_ts = dt.isoformat()
-        # inventory this path
-        inventory_prefix = hostname+"_"+path_name.replace(" ", "_")+"_"+short_ts
-        start = time.time()
-        with open("inv_"+inventory_prefix+".csv",'w') as inv_output:
-            inv = inventory_dir(base_path, excl, inv_output)
-        end = time.time()
-        # create inventory metadata
+           dt = datetime.now(pytz.timezone('UTC'))
+           short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
+           iso_ts = dt.isoformat()
+           # inventory this path
+           inventory_prefix = hostname+"_"+path_name.replace(" ", "_")+"_"+short_ts
+           start = time.time()
+           with open("inv_"+inventory_prefix+".csv",'w') as inv_output:
+             inv = inventory_dir(base_path, excl, inv_output)
+           end = time.time()
+           dur = end-start
+           # create inventory metadata
         with open("inv_md_"+inventory_prefix+".json",'w') as md_output:
             # metadata records:
             # hostname, timestamp, duration, path
-            dur = end-start
             inv_md = {'hostname':hostname,
                       'bkupinv_version':'0.0.2',
                       'name': path_name,
