@@ -127,7 +127,10 @@ def inventory_config(config):
            print "Getting pre-built inventory from disc"
            # copy inventory files to a temp location
            temp_dir = tempfile.mkdtemp(prefix='bkupinv')
-           shutil.copy(inv_file, temp_dir)
+           # If we can't read the inventory, print a message and skip
+           if (not os.path.isdir(inv_file)):
+              print "Could not find %s, skipping" % inv_file
+           continue 
            # Find the disk
            # Run df inv_file, and get the last word on the last line.
            df_all = subprocess.check_output(["df",inv_file])
