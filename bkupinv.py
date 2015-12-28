@@ -107,6 +107,7 @@ def inventory_config(config):
        # Path not required for archives
         dur = None
         path_name = path['name']
+        print "Looking at path %s" % path_name
         base_path = path['path']
         image_hash = path.get('image_hash') # SHA256 hash of image
         image_size = path.get('image_size') # Size of image in bytes
@@ -128,9 +129,10 @@ def inventory_config(config):
            # copy inventory files to a temp location
            temp_dir = tempfile.mkdtemp(prefix='bkupinv')
            # If we can't read the inventory, print a message and skip
-           if (not os.path.isdir(inv_file)):
+           if (not os.path.isfile(inv_file)):
               print "Could not find %s, skipping" % inv_file
-           continue 
+              continue
+           print "found inventory"
            # Find the disk
            # Run df inv_file, and get the last word on the last line.
            df_all = subprocess.check_output(["df",inv_file])
