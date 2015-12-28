@@ -71,7 +71,13 @@ allowed_padding = int(max_bytes*0.01)
 inventory = set()
 write_inventory = False
 if len(sys.argv) > 4:
-    inventory_file = open(sys.argv[4],'rw')
+    inv_filename = sys.argv[4]
+    # Create inventory file if needed
+    if (!os.path.isfile(inv_file))):
+        i_empty = open(inv_file,'w');
+        i_empty.write("")
+        i_empty.close()
+    inventory_file = open(inv_filename,'rw')
     inventory = set(inventory_file.read().splitlines())
     inventory_file.close()
     inventory_file = open(sys.argv[4],'a')
