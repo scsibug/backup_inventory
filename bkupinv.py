@@ -90,10 +90,12 @@ def inventory_dir(directory, excludes_rel, output_file):
                            fhash = shasum_output.split()[0]
                         rel_path = os.path.relpath(full_path, directory)
                         csv_writer.writerow( (rel_path.encode('utf-8'), fhash, size, mtime))
+                except subprocess.CalledProcessError as e:
+                    print "{0} error({1}): when reading {2}".format(e.cmd, e.returncode,full_path)
                 except csv.Error as e:
                    sys.exit('file %s: %s' % (output_file.name, e))
                 except IOError as e:
-                    print "I/O error({0}): {1}".format(e.errno, e.strerror)
+                    print "I/O error({0}): {1}, when reading {2}".format(e.errno, e.strerror,full_path)
 
 def inventory_config(config):
     """Inventory items from a given configuration."""
@@ -124,15 +126,22 @@ def inventory_config(config):
         path_uuid = path['uuid'] # Gen with import uid;uuid.uuid4()
         # If there is an inventory_file, image_hash, and type is 'archive';
         # Treat this as removable media
+        dt = datetime.now(pytz.timezone('UTC'))
+        short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
+        iso_ts = dt.isoformat()
+        # inventory this path
+        inventory_prefix = hostname+"_"+path_name.replace(" ", "_")+"_"+short_ts
         if (inv_file and image_hash and t == "archive"):
            print "Getting pre-built inventory from disc"
-           # copy inventory files to a temp location
-           temp_dir = tempfile.mkdtemp(prefix='bkupinv')
            # If we can't read the inventory, print a message and skip
            if (not os.path.isfile(inv_file)):
               print "Could not find %s, skipping" % inv_file
               continue
            print "found inventory"
+           # copy inventory files to a temp location
+           inv_dest = "inv_"+inventory_prefix+".csv"
+           temp_inv = tempfile.mkdtemp(prefix='bkupinv') + os.path.sep + inv_dest
+           shutil.copy(inv_file,temp_inv)
            # Find the disk
            # Run df inv_file, and get the last word on the last line.
            df_all = subprocess.check_output(["df",inv_file])
@@ -156,6 +165,8 @@ def inventory_config(config):
            print "checking that disc checksum (%s) matches expected (%s)" % (disk_hash_out,image_hash)
            if (disk_hash_out == image_hash):
               print "checksum matched"
+              # metadata will be created below.
+              shutil.copy(temp_inv,".")
            else:
               sys.exit('checksum failed!')
            print "done with checksum of disk"
@@ -164,14 +175,9 @@ def inventory_config(config):
            continue
         else:
            print "Generating inventory for: %s" % (base_path)
-           dt = datetime.now(pytz.timezone('UTC'))
-           short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
-           iso_ts = dt.isoformat()
-           # inventory this path
-           inventory_prefix = hostname+"_"+path_name.replace(" ", "_")+"_"+short_ts
            start = time.time()
            with open("inv_"+inventory_prefix+".csv",'w') as inv_output:
-             inv = inventory_dir(base_path, excl, inv_output)
+              inv = inventory_dir(base_path, excl, inv_output)
            end = time.time()
            dur = end-start
            # create inventory metadata
