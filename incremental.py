@@ -7,20 +7,35 @@
 import sys
 import csv
 import os
+from datetime import datetime, MINYEAR
+import time
+import re
+import pytz
 from operator import attrgetter
 
 # CSV Dialect
-csv.register_dialect('Inventory', delimiter=',',doublequote=False,quotechar='"',lineterminator='\n',escapechar='\\',quoting=csv.QUOTE_ALL)
+csv.register_dialect('Inventory',
+                     delimiter=',',
+                     doublequote=False,
+                     quotechar='"',
+                     lineterminator='\n',
+                     escapechar='\\',
+                     quoting=csv.QUOTE_ALL)
 
 # TODO: read the inventory AND metadata to determine the parent path for inventory items.
 
 # Or, just scrap the attempt to reconcile the inventory files and the current backup, and just
 # write items as we find them, who cares what the inventory says....
 
+# This contains data for the latest snapshot of files paths/hashes/modification dates we are trying to backup.
 inv_filename = os.path.abspath(sys.argv[1])
+# Where to look for incremental backup log history (one file per backup)
 log_dir = os.path.abspath(sys.argv[2])
+# how much to backup in this run
 backup_size = int(sys.argv[3])
+# where to store the copies of backup files prior to burning
 temp_dir = os.path.abspath(sys.argv[4])
+
 
 class BackupFile:
     """A file that needs to be backed up"""
@@ -37,8 +52,6 @@ class BackupFile:
         if ((new_date > self.last_backup_date) or
             (self.last_backup_date is None)):
             self.last_backup_date = new_date
-
-
 
 # Read each line of the inventory file
 print("Parsing inventory: %s" % inv_filename)
@@ -83,15 +96,36 @@ for f in incr_history:
 all_log_files = [ f for f in os.listdir(log_dir) ]
 for log_filename in all_log_files:
     log_path = os.path.join(log_dir,log_filename)
-    print "======== checking '%s' ========" %log_path
+    log_time = datetime.strptime((re.sub("\\.txt","",log_filename)),"%Y-%m-%d_%H%M%S")
+    print "======== checking '%s' ========" %log_time
     # TODO process incremental logs
+    # from filename determine the backup date
+    with open(log_path, "r") as log_file:
+        for line in log_file:
+            hash_entry = line.rstrip()
+            # Lookup hash from incr_history, and set the date if this is more recent
+            found = file_by_hash.get(hash_entry)
+            if (found == None):
+                pass
+               #"hash not found.. this file is no longer in the current snapshot we are backing up"
+            else:
+                for entry in found:
+                    if (entry.last_backup_date == None or entry.last_backup_date < log_time):
+                        entry.last_backup_date = log_time
+                
+# TODO: Get the current log file ready
+dt = datetime.now(pytz.timezone('UTC'))
+short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
+curr_log_filename = short_ts+".txt"
+log_file = open(os.path.join(log_dir,curr_log_filename), "w")
 
 
 # Sort incr_history by last_backup_date, then modified date. (oldest first).
-incr_history = sorted(incr_history, key=attrgetter('last_backup_date'))
-incr_history = sorted(incr_history, key=attrgetter('modified'))
-print incr_history
-
+mindate = datetime(MINYEAR, 1, 1)
+def getBackupDate(x):
+    return x.last_backup_date or mindate
+incr_history = sorted(incr_history, key=getBackupDate, reverse=False)
+#incr_history = sorted(incr_history, key=attrgetter('modified'))
 
 
 # Now that we have annotations on all the items in our incr_history,
@@ -112,14 +146,64 @@ current_size = 0
 # Check the size of the file to determine if we can move it.
 # If the filesize and modification date do not match, ignore.
 #  -- This means we don't pick up very frequently-modified files.
+# Write the file hash to the current log file as well
+
+# Set of hashes that we did backup.
+backup_set = set()
+
+# Files we did backup
+backed_up = []
+
+# Files we did not backup
+backup_omitted = []
 
 for f in incr_history:
+    print f
     print "current size is %d" % current_size
     print "checking %s" % (f.filename)
+    print "last backed up date: %s" % (f.last_backup_date)
     print "Currently we are at %.2f %% capacity" % (100*current_size/backup_size)
+
     if (current_size + f.size <= backup_size):
         print "...adding file"
         current_size = current_size + f.size
+        # Add log entry for hash
+        print "  hash: %s" % f.hash
+        backed_up.append(f)
+        if (f not in backup_set):
+            backup_set.add(f.hash)
+            log_file.write(f.hash+"\n")
     else:
-        print "...file is too large, skipping"
+        print "(skipping large file: %s)" % f.filename
+        backup_omitted.append(f)
+print "===================="
+if (len(backed_up) > 0):
+    # Analyze files that are set to be backed up
+    print "backed up %i files" % len(backed_up)
+    backed_up = sorted(backed_up, key=getBackupDate, reverse=False)
+#    print "Newest file we did backup: %s"% backed_up[0].last_backup_date
+    print "Newest file we did backup:"
+    print "    name       : %s"% backed_up[0].filename
+    print "    modified   : %s"% time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(backed_up[0].modified))
+    print "    last backup: %s"% backed_up[0].last_backup_date
+    print "    size       : %s"% backed_up[0].size
+else:
+    print "No files were backed up."
+# Analyze files that were omitted
+print "===================="
+if (len(backup_omitted) > 0):
+    backup_omitted = sorted(backup_omitted, key=getBackupDate, reverse=False)
+    print "omitted up %i files" % len(backup_omitted)
+    print "Oldest file we did not backup:"
+    print "    name       : %s"% backup_omitted[0].filename
+    print "    modified   : %s"% time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(backup_omitted[0].modified))
+    print "    last backup: %s"% backup_omitted[0].last_backup_date
+    print "    size       : %s"% backup_omitted[0].size
+else:
+    print "All files were backed up."
+# What is the newest file we did backup, and the oldest file we did not?
+# Oldest file we did not backup
 
+
+# close log file
+log_file.close()
