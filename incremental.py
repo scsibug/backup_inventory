@@ -6,12 +6,14 @@
 
 import sys
 import csv
+import json
 import os
 from datetime import datetime, MINYEAR
 import time
 import re
 import pytz
-from operator import attrgetter
+import shutil
+#from operator import attrgetter
 
 # CSV Dialect
 csv.register_dialect('Inventory',
@@ -29,12 +31,14 @@ csv.register_dialect('Inventory',
 
 # This contains data for the latest snapshot of files paths/hashes/modification dates we are trying to backup.
 inv_filename = os.path.abspath(sys.argv[1])
+# This contains the description of the backup (containing the parent path as the "root" element of the json file)
+inv_description = os.path.abspath(sys.argv[2])
 # Where to look for incremental backup log history (one file per backup)
-log_dir = os.path.abspath(sys.argv[2])
+log_dir = os.path.abspath(sys.argv[3])
 # how much to backup in this run
-backup_size = int(sys.argv[3])
+backup_size = int(sys.argv[4])
 # where to store the copies of backup files prior to burning
-temp_dir = os.path.abspath(sys.argv[4])
+temp_dir = os.path.abspath(sys.argv[5])
 
 
 class BackupFile:
@@ -71,6 +75,13 @@ with open(inv_filename, "r") as inv_file:
         # instead we should maintain an array of items that we can then sort by date.
         incr_history.append(BackupFile(row[0],row[1],int(row[3]),int(row[2])))
 
+# Determine the root prefix of the files described in the inventory
+print("Parsing inventory description: %s" % inv_description)
+inv_desc_f = open(inv_description)
+inv_json = json.loads(inv_desc_f.read())
+root_path = inv_json["root"]
+print("Root path of all files is: %s" % root_path)
+        
 # Create a dict ordered by hash
 file_by_hash = {}
 for f in incr_history:
@@ -125,7 +136,6 @@ mindate = datetime(MINYEAR, 1, 1)
 def getBackupDate(x):
     return x.last_backup_date or mindate
 incr_history = sorted(incr_history, key=getBackupDate, reverse=False)
-#incr_history = sorted(incr_history, key=attrgetter('modified'))
 
 
 # Now that we have annotations on all the items in our incr_history,
@@ -167,6 +177,17 @@ for f in incr_history:
     if (current_size + f.size <= backup_size):
         print "...adding file"
         current_size = current_size + f.size
+        # TODO: copy files to temp location
+        # Need to know where this file is in order to copy it!
+        # Possibly should try to verify that the modification date/hash are the same
+        full_filepath = os.path.abspath(root_path+os.sep+f.filename)
+        dest_filepath = os.path.abspath(temp_dir+os.sep+f.filename)
+        dest_dir = os.path.dirname(dest_filepath)
+        if (not os.path.exists(dest_dir)):
+            print "making directory %s" % (dest_dir)
+            os.makedirs(dest_dir)
+        print "Backing up %s" % (full_filepath)
+        shutil.copy2(full_filepath,dest_filepath)
         # Add log entry for hash
         print "  hash: %s" % f.hash
         backed_up.append(f)
