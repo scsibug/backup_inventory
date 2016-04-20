@@ -35,7 +35,8 @@ csv.register_dialect('Inventory',
 inv_raw_filename = sys.argv[1]
 inv_filename = os.path.abspath(inv_raw_filename)
 # This contains the description of the backup (containing the parent path as the "root" element of the json file)
-inv_description = os.path.abspath(sys.argv[2])
+inv_description_filename = sys.argv[2]
+inv_description = os.path.abspath(inv_description_filename)
 # Where to look for incremental backup log history (one file per backup)
 log_dir = os.path.abspath(sys.argv[3])
 # how much to backup in this run
@@ -107,7 +108,7 @@ csv_writer = csv.writer(csv_file, 'Inventory')
 temp_md_dir = temp_parent_dir+os.path.sep+backup_name+os.path.sep+"metadata"
 if (not os.path.exists(temp_md_dir)):    os.makedirs(temp_md_dir)
 # copy metadata
-shutil.copy2(,dest_filepath)
+shutil.copy2(inv_description,temp_md_dir)
 # Prepare the directory we will backup to
 temp_dir = temp_parent_dir+os.path.sep+backup_name+os.path.sep+inv_hostname+os.path.sep+inv_name
 if (not os.path.exists(temp_dir)):
