@@ -13,6 +13,8 @@ import time
 import re
 import pytz
 import shutil
+import uuid
+
 #from operator import attrgetter
 
 # CSV Dialect
@@ -30,7 +32,8 @@ csv.register_dialect('Inventory',
 # write items as we find them, who cares what the inventory says....
 
 # This contains data for the latest snapshot of files paths/hashes/modification dates we are trying to backup.
-inv_filename = os.path.abspath(sys.argv[1])
+inv_raw_filename = sys.argv[1]
+inv_filename = os.path.abspath(inv_raw_filename)
 # This contains the description of the backup (containing the parent path as the "root" element of the json file)
 inv_description = os.path.abspath(sys.argv[2])
 # Where to look for incremental backup log history (one file per backup)
@@ -38,8 +41,13 @@ log_dir = os.path.abspath(sys.argv[3])
 # how much to backup in this run
 backup_size = int(sys.argv[4])
 # where to store the copies of backup files prior to burning
-temp_dir = os.path.abspath(sys.argv[5])
-
+temp_parent_dir = os.path.abspath(sys.argv[5])
+# human-readable name of backup
+backup_name = sys.argv[6]
+# This backups uuid
+backup_uuid = str(uuid.uuid4())
+# Full/unique backup name
+unique_backup_name = backup_name+"-"+backup_uuid
 
 class BackupFile:
     """A file that needs to be backed up"""
@@ -81,7 +89,32 @@ inv_desc_f = open(inv_description)
 inv_json = json.loads(inv_desc_f.read())
 root_path = inv_json["root"]
 print("Root path of all files is: %s" % root_path)
-        
+inv_name = inv_json["name"]
+inv_hostname = inv_json["hostname"]
+print("Backup source name is: %s" % inv_name)
+print("Backup source hostname is: %s" % inv_hostname)
+
+# Prepare the directory which will contain inventory and metadata subdirs
+temp_inv_dir = temp_parent_dir+os.path.sep+backup_name+os.path.sep+"inventory"
+if (not os.path.exists(temp_inv_dir)):    os.makedirs(temp_inv_dir)
+dt = datetime.now(pytz.timezone('UTC'))
+short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
+iso_ts = dt.isoformat()
+# inventory this path
+media_inv_filename = "inv_"+inv_hostname+"_"+inv_name.replace(" ","_")+"_"+short_ts+".csv"
+csv_file = open(os.path.join(temp_inv_dir,media_inv_filename), 'w')
+csv_writer = csv.writer(csv_file, 'Inventory')
+temp_md_dir = temp_parent_dir+os.path.sep+backup_name+os.path.sep+"metadata"
+if (not os.path.exists(temp_md_dir)):    os.makedirs(temp_md_dir)
+# copy metadata
+shutil.copy2(,dest_filepath)
+# Prepare the directory we will backup to
+temp_dir = temp_parent_dir+os.path.sep+backup_name+os.path.sep+inv_hostname+os.path.sep+inv_name
+if (not os.path.exists(temp_dir)):
+    os.makedirs(temp_dir)
+else:
+    sys.exit("This backup directory already exists!")
+
 # Create a dict ordered by hash
 file_by_hash = {}
 for f in incr_history:
@@ -183,17 +216,27 @@ for f in incr_history:
         full_filepath = os.path.abspath(root_path+os.sep+f.filename)
         dest_filepath = os.path.abspath(temp_dir+os.sep+f.filename)
         dest_dir = os.path.dirname(dest_filepath)
-        if (not os.path.exists(dest_dir)):
-            print "making directory %s" % (dest_dir)
-            os.makedirs(dest_dir)
-        print "Backing up %s" % (full_filepath)
-        shutil.copy2(full_filepath,dest_filepath)
-        # Add log entry for hash
-        print "  hash: %s" % f.hash
-        backed_up.append(f)
-        if (f not in backup_set):
-            backup_set.add(f.hash)
-            log_file.write(f.hash+"\n")
+        # Check if modification date matches
+        mtime = int(os.path.getmtime(full_filepath))
+        size = os.path.getsize(full_filepath)
+        # Proceed if the modification timestamp and filesize match
+        if (mtime == f.modified and size == f.size):
+            if (not os.path.exists(dest_dir)):
+                print "making directory %s" % (dest_dir)
+                os.makedirs(dest_dir)
+            print "Backing up %s" % (full_filepath)
+            shutil.copy2(full_filepath,dest_filepath)
+            # Add log entry for hash
+            print "  hash: %s" % f.hash
+            # Write CSV entry for file
+            csv_writer.writerow( (f.filename.encode('utf-8'), f.hash, f.size, f.modified))
+            backed_up.append(f)
+            if (f not in backup_set):
+                backup_set.add(f.hash)
+                log_file.write(f.hash+"\n")
+        else :
+            print "file metadata has changed since inventory, ignoring."
+            backup_omitted.append(f)
     else:
         print "(skipping large file: %s)" % f.filename
         backup_omitted.append(f)
@@ -225,6 +268,32 @@ else:
 # What is the newest file we did backup, and the oldest file we did not?
 # Oldest file we did not backup
 
-
 # close log file
 log_file.close()
+#close CSV inventory
+csv_file.close()
+
+# TODO
+# Generate inventory config
+with open(backup_name, "w") as inventory_config:
+    inv_config_json = {'global': {'hostname': inv_hostname},
+                       'paths': [
+                           {
+                               'description': backup_name,
+                               'uuid': backup_uuid,
+                               'name': backup_name,
+                               'path': root_path,
+                               'excludes': [],
+                               'type': 'archive',
+                               'image_hash': '',
+                               'image_size': '',
+                               'image_block_size': '',
+                               'device_hash': '',
+                               'inventory_file': ''
+                           }
+                        ]
+                       }
+    inventory_config.write(json.dumps(inv_config_json,indent=4))
+
+# Put the bkupinv style metadata in the output directory
+# Create a disc image!
