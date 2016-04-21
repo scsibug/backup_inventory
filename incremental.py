@@ -41,6 +41,8 @@ inv_description = os.path.abspath(inv_description_filename)
 log_dir = os.path.abspath(sys.argv[3])
 # how much to backup in this run
 backup_size = int(sys.argv[4])
+# stop when we are this close to the end.  Prevents piling on all the small files every time.
+backup_limit = 100000000
 # where to store the copies of backup files prior to burning
 temp_parent_dir = os.path.abspath(sys.argv[5])
 # human-readable name of backup
@@ -208,7 +210,7 @@ for f in incr_history:
     print "last backed up date: %s" % (f.last_backup_date)
     print "Currently we are at %.2f %% capacity" % (100*current_size/backup_size)
 
-    if (current_size + f.size <= backup_size):
+    if ((current_size + f.size) <= backup_size):
         print "...adding file"
         current_size = current_size + f.size
         # TODO: copy files to temp location
@@ -238,6 +240,9 @@ for f in incr_history:
         else :
             print "file metadata has changed since inventory, ignoring."
             backup_omitted.append(f)
+    elif (backup_size - current_size <= backup_limit):
+        print "Not enough room for more files, finishing up"
+        break
     else:
         print "(skipping large file: %s)" % f.filename
         backup_omitted.append(f)
