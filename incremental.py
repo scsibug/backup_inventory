@@ -5,6 +5,8 @@
 # disc) with content.
 
 import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
 import csv
 import json
 import os
@@ -14,7 +16,7 @@ import re
 import pytz
 import shutil
 import uuid
-
+import codecs
 #from operator import attrgetter
 
 # CSV Dialect
@@ -79,6 +81,7 @@ print("Parsing inventory: %s" % inv_filename)
 # filename, size, and timestamp are from the original inventory
 incr_history = []
 
+# TODO: CSV module doesn't support unicode??
 with open(inv_filename, "r") as inv_file:
     inv_reader = csv.reader(inv_file, dialect='Inventory')
     for row in inv_reader:
@@ -88,7 +91,7 @@ with open(inv_filename, "r") as inv_file:
 
 # Determine the root prefix of the files described in the inventory
 print("Parsing inventory description: %s" % inv_description)
-inv_desc_f = open(inv_description)
+inv_desc_f = codecs.open(inv_description,encoding='utf-8')
 inv_json = json.loads(inv_desc_f.read())
 root_path = inv_json["root"]
 print("Root path of all files is: %s" % root_path)
@@ -105,7 +108,7 @@ short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
 iso_ts = dt.isoformat()
 # inventory this path
 media_inv_filename = "inv_"+inv_hostname+"_"+inv_name.replace(" ","_")+"_"+short_ts+".csv"
-csv_file = open(os.path.join(temp_inv_dir,media_inv_filename), 'w')
+csv_file = codecs.open(os.path.join(temp_inv_dir,media_inv_filename), 'w',encoding='utf-8')
 csv_writer = csv.writer(csv_file, 'Inventory')
 temp_md_dir = temp_parent_dir+os.path.sep+backup_name+os.path.sep+"metadata"
 if (not os.path.exists(temp_md_dir)):    os.makedirs(temp_md_dir)
@@ -147,7 +150,7 @@ for log_filename in all_log_files:
     print "======== checking '%s' ========" %log_time
     # TODO process incremental logs
     # from filename determine the backup date
-    with open(log_path, "r") as log_file:
+    with codecs.open(log_path, "r",encoding='utf-8') as log_file:
         for line in log_file:
             hash_entry = line.rstrip()
             # Lookup hash from incr_history, and set the date if this is more recent
@@ -164,7 +167,7 @@ for log_filename in all_log_files:
 dt = datetime.now(pytz.timezone('UTC'))
 short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
 curr_log_filename = short_ts+".txt"
-log_file = open(os.path.join(log_dir,curr_log_filename), "w")
+log_file = codecs.open(os.path.join(log_dir,curr_log_filename), "w",encoding='utf-8')
 
 
 # Sort incr_history by last_backup_date, then modified date. (oldest first).
@@ -208,7 +211,7 @@ for f in incr_history:
     print "current size is %d" % current_size
     print "checking %s" % (f.filename)
     print "last backed up date: %s" % (f.last_backup_date)
-    print "Currently we are at %.2f %% capacity" % (100*current_size/backup_size)
+    print "Currently we are at %.2f %% capacity" % (100.0*current_size/backup_size)
 
     if ((current_size + f.size) <= backup_size):
         print "...adding file"
@@ -216,8 +219,11 @@ for f in incr_history:
         # TODO: copy files to temp location
         # Need to know where this file is in order to copy it!
         # Possibly should try to verify that the modification date/hash are the same
-        full_filepath = os.path.abspath(root_path+os.sep+f.filename)
-        dest_filepath = os.path.abspath(temp_dir+os.sep+f.filename)
+        #print f.filename.encode('utf8').decode('ascii',errors='ignore')
+        x = f.filename.encode('utf-8')
+        print x
+        full_filepath = os.path.abspath(root_path.encode('utf-8')+os.sep.encode('utf-8')+f.filename.encode('utf-8'))
+        dest_filepath = os.path.abspath(temp_dir.encode('utf-8')+os.sep.encode('utf-8')+f.filename.encode('utf-8'))
         dest_dir = os.path.dirname(dest_filepath)
         # Check if modification date matches
         mtime = int(os.path.getmtime(full_filepath))
@@ -242,6 +248,7 @@ for f in incr_history:
             backup_omitted.append(f)
     elif (backup_size - current_size <= backup_limit):
         print "Not enough room for more files, finishing up"
+        backup_omitted.append(f)
         break
     else:
         print "(skipping large file: %s)" % f.filename
@@ -281,7 +288,7 @@ csv_file.close()
 
 # TODO
 # Generate inventory config
-with open(backup_name, "w") as inventory_config:
+with codecs.open(backup_name, "w",encoding='utf-8') as inventory_config:
     inv_config_json = {'global': {'hostname': inv_hostname},
                        'paths': [
                            {
