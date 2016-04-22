@@ -296,6 +296,11 @@ subprocess.call(["chmod", "-R", "744", temp_dir])
 # make image
 print temp_parent_dir
 subprocess.call(["hdiutil", "makehybrid", "-udf", "-udf-volume-name", unique_backup_name, "-o", image_path, image_path])
+# get image attributes
+print "Getting image size/hash"
+subprocess.call(["stat", "-f%z", image_path+".iso"])
+#cmd = "dd if=%s count=%s ibs=%s | pv -tpreb | shasum -a 256" % (disk_dev, image_size/image_block_size, image_block_size)
+#disk_hash_out = subprocess.check_output([cmd], shell=True).split(" ")[0]
 # TODO
 # Generate inventory config
 with codecs.open(backup_name, "w",encoding='utf-8') as inventory_config:
