@@ -16,6 +16,7 @@ import re
 import pytz
 import shutil
 import uuid
+import subprocess
 import codecs
 #from operator import attrgetter
 
@@ -101,7 +102,8 @@ print("Backup source name is: %s" % inv_name)
 print("Backup source hostname is: %s" % inv_hostname)
 
 # Prepare the directory which will contain inventory and metadata subdirs
-temp_inv_dir = temp_parent_dir+os.path.sep+backup_name+os.path.sep+"inventory"
+image_path = temp_parent_dir+os.path.sep+backup_name
+temp_inv_dir = image_path+os.sep+u'inventory'
 if (not os.path.exists(temp_inv_dir)):    os.makedirs(temp_inv_dir)
 dt = datetime.now(pytz.timezone('UTC'))
 short_ts = dt.strftime("%Y-%m-%d_%H%M%S")
@@ -286,6 +288,14 @@ log_file.close()
 #close CSV inventory
 csv_file.close()
 
+# Create a disc image!
+print "Creating disc image"
+print "Setting sane permissions"
+subprocess.call(["chflags", "-R", "nouchg", temp_dir])
+subprocess.call(["chmod", "-R", "744", temp_dir])
+# make image
+print temp_parent_dir
+subprocess.call(["hdiutil", "makehybrid", "-udf", "-udf-volume-name", unique_backup_name, "-o", image_path, image_path])
 # TODO
 # Generate inventory config
 with codecs.open(backup_name, "w",encoding='utf-8') as inventory_config:
@@ -309,4 +319,4 @@ with codecs.open(backup_name, "w",encoding='utf-8') as inventory_config:
     inventory_config.write(json.dumps(inv_config_json,indent=4))
 
 # Put the bkupinv style metadata in the output directory
-# Create a disc image!
+
