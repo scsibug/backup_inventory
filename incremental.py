@@ -151,7 +151,7 @@ all_log_files = [ f for f in os.listdir(log_dir) ]
 for log_filename in all_log_files:
     log_path = os.path.join(log_dir,log_filename)
     log_time = datetime.strptime((re.sub("\\.txt","",log_filename)),"%Y-%m-%d_%H%M%S")
-    print "======== checking '%s' ========" %log_time
+    #print "======== checking '%s' ========" %log_time
     # TODO process incremental logs
     # from filename determine the backup date
     with codecs.open(log_path, "r",encoding='utf-8') as log_file:
@@ -210,22 +210,26 @@ backed_up = []
 # Files we did not backup
 backup_omitted = []
 
+last_capacity_check = 0.0
+
 for f in incr_history:
-    print f
-    print "current size is %d" % current_size
-    print "checking %s" % (f.filename)
-    print "last backed up date: %s" % (f.last_backup_date)
-    print "Currently we are at %.2f %% capacity" % (100.0*current_size/backup_size)
+    #print f
+    #print "current size is %d" % current_size
+    #print "checking %s" % (f.filename)
+    #print "last backed up date: %s" % (f.last_backup_date)
+    current_capacity = (100.0*current_size/backup_size)
+    if (current_capacity - last_capacity_check > 1.0):
+        print "Currently we are at %.2f %% capacity" % current_capacity
+    last_capacity_check = current_capacity
 
     if ((current_size + f.size) <= backup_size):
-        print "...adding file"
         current_size = current_size + f.size
         # TODO: copy files to temp location
         # Need to know where this file is in order to copy it!
         # Possibly should try to verify that the modification date/hash are the same
         #print f.filename.encode('utf8').decode('ascii',errors='ignore')
         x = f.filename.encode('utf-8')
-        print x
+        #print x
         full_filepath = os.path.abspath(root_path.encode('utf-8')+os.sep.encode('utf-8')+f.filename.encode('utf-8'))
         dest_filepath = os.path.abspath(temp_dir.encode('utf-8')+os.sep.encode('utf-8')+f.filename.encode('utf-8'))
         dest_dir = os.path.dirname(dest_filepath)
@@ -235,12 +239,12 @@ for f in incr_history:
         # Proceed if the modification timestamp and filesize match
         if (mtime == f.modified and size == f.size):
             if (not os.path.exists(dest_dir)):
-                print "making directory %s" % (dest_dir)
+                #print "making directory %s" % (dest_dir)
                 os.makedirs(dest_dir)
-            print "Backing up %s" % (full_filepath)
+            #print "Backing up %s" % (full_filepath)
             shutil.copy2(full_filepath,dest_filepath)
             # Add log entry for hash
-            print "  hash: %s" % f.hash
+            #print "  hash: %s" % f.hash
             # Write CSV entry for file
             csv_writer.writerow( (f.filename.encode('utf-8'), f.hash, f.size, f.modified))
             backed_up.append(f)
@@ -248,14 +252,14 @@ for f in incr_history:
                 backup_set.add(f.hash)
                 log_file.write(f.hash+"\n")
         else :
-            print "file metadata has changed since inventory, ignoring."
+            #print "file metadata has changed since inventory, ignoring."
             backup_omitted.append(f)
     elif (backup_size - current_size <= backup_limit):
         print "Not enough room for more files, finishing up"
         backup_omitted.append(f)
         break
     else:
-        print "(skipping large file: %s)" % f.filename
+        #print "(skipping large file: %s)" % f.filename
         backup_omitted.append(f)
 print "===================="
 if (len(backed_up) > 0):
