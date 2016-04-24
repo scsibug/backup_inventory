@@ -54,6 +54,8 @@ backup_name = sys.argv[6]
 backup_uuid = str(uuid.uuid4())
 # Full/unique backup name
 unique_backup_name = backup_name+"-"+backup_uuid
+# Destination to use for config that will contain description of the disc we are making
+config_destination = sys.argv[7]
 
 class BackupFile:
     """A file that needs to be backed up"""
@@ -298,30 +300,49 @@ print temp_parent_dir
 subprocess.call(["hdiutil", "makehybrid", "-udf", "-udf-volume-name", unique_backup_name, "-o", image_path, image_path])
 # get image attributes
 print "Getting image size/hash"
-subprocess.call(["stat", "-f%z", image_path+".iso"])
-#cmd = "dd if=%s count=%s ibs=%s | pv -tpreb | shasum -a 256" % (disk_dev, image_size/image_block_size, image_block_size)
-#disk_hash_out = subprocess.check_output([cmd], shell=True).split(" ")[0]
-# TODO
-# Generate inventory config
-with codecs.open(backup_name, "w",encoding='utf-8') as inventory_config:
-    inv_config_json = {'global': {'hostname': inv_hostname},
-                       'paths': [
-                           {
-                               'description': backup_name,
-                               'uuid': backup_uuid,
-                               'name': backup_name,
-                               'path': root_path,
-                               'excludes': [],
-                               'type': 'archive',
-                               'image_hash': '',
-                               'image_size': '',
-                               'image_block_size': '',
-                               'device_hash': '',
-                               'inventory_file': ''
-                           }
-                        ]
-                       }
-    inventory_config.write(json.dumps(inv_config_json,indent=4))
+#subprocess.call(["stat", "-f%z", image_path+".iso"])
+#check_size_command = "stat -f%%z %s" % (image_path+".iso")
+image_size = int(subprocess.check_output(["stat", "-f%z", image_path+".iso"]))
+print "image size is: %d" % int(image_size)
+image_hash = subprocess.check_output(["cat \""+image_path+".iso\"|pv -tpreb| shasum -a 256"],shell=True).split(" ")[0]
+print "image hash is: %s" % image_hash
+# inventory file path
+inventory_file_full_path = "/Volumes"+os.sep+unique_backup_name+os.sep+"inventory"+os.sep+media_inv_filename
+#      "inventory_file": "/Volumes/bd_13-e1375884-0864-4814-b80c-3de85e5d6aa7/inventory/inv_cosina_bd_13_2015-06-26_030518.csv"
+
+
+
+path_descr = {
+    'description': backup_name,
+    'uuid': backup_uuid,
+    'name': backup_name,
+    'path': root_path,
+    'excludes': [],
+    'type': 'archive',
+    'image_hash': image_hash,
+    'image_size': image_size,
+    'image_block_size': 512,
+    'inventory_file': inventory_file_full_path
+}
+
+# if inventory description file exists, edit it.  Otherwise create it from scratch.
+if (not os.path.isfile(config_destination)):
+    with codecs.open(config_destination, "w",encoding='utf-8') as inventory_config:
+        inv_config_json = {'global': {'hostname': inv_hostname},
+                           'paths': [
+                               path_descr
+                           ]
+        }
+        inventory_config.write(json.dumps(inv_config_json,indent=4))
+else:    
+    # Read and update
+    with codecs.open(config_destination, 'r+', encoding='utf-8') as inventory_config:
+        data = json.load(inventory_config)
+        paths = data['paths']
+        data['paths'].append(path_descr)
+        inventory_config.seek(0)
+        json.dump(data, inventory_config, indent=4)
+        #inventory_config.write(json.dumps(inv_config_json,indent=4))
 
 # Put the bkupinv style metadata in the output directory
 
