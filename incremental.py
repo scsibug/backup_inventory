@@ -57,6 +57,8 @@ unique_backup_name = backup_name+"-"+backup_uuid
 # Destination to use for config that will contain description of the disc we are making
 config_destination = sys.argv[7]
 
+print "Beginning backup of %s (%s)" % (backup_name, backup_uuid)
+
 class BackupFile:
     """A file that needs to be backed up"""
     def __repr__(self):
@@ -82,6 +84,7 @@ print("Parsing inventory: %s" % inv_filename)
 # count is how many times we have written to this to backups in the past.
 # date is the most recent time it appears in a backup (nil if never backup up)
 # filename, size, and timestamp are from the original inventory
+# TODO: increment count
 incr_history = []
 
 # TODO: CSV module doesn't support unicode??
@@ -223,7 +226,7 @@ for f in incr_history:
     last_capacity_check = current_capacity
 
     if ((current_size + f.size) <= backup_size):
-        current_size = current_size + f.size
+
         # TODO: copy files to temp location
         # Need to know where this file is in order to copy it!
         # Possibly should try to verify that the modification date/hash are the same
@@ -234,32 +237,37 @@ for f in incr_history:
         dest_filepath = os.path.abspath(temp_dir.encode('utf-8')+os.sep.encode('utf-8')+f.filename.encode('utf-8'))
         dest_dir = os.path.dirname(dest_filepath)
         # Check if modification date matches
-        mtime = int(os.path.getmtime(full_filepath))
-        size = os.path.getsize(full_filepath)
-        # Proceed if the modification timestamp and filesize match
-        if (mtime == f.modified and size == f.size):
-            if (not os.path.exists(dest_dir)):
-                #print "making directory %s" % (dest_dir)
-                os.makedirs(dest_dir)
-            #print "Backing up %s" % (full_filepath)
-            shutil.copy2(full_filepath,dest_filepath)
-            # Add log entry for hash
-            #print "  hash: %s" % f.hash
-            # Write CSV entry for file
-            csv_writer.writerow( (f.filename.encode('utf-8'), f.hash, f.size, f.modified))
-            backed_up.append(f)
-            if (f not in backup_set):
-                backup_set.add(f.hash)
-                log_file.write(f.hash+"\n")
-        else :
-            #print "file metadata has changed since inventory, ignoring."
-            backup_omitted.append(f)
+        if (os.path.isfile(full_filepath)):
+            mtime = int(os.path.getmtime(full_filepath))
+            size = os.path.getsize(full_filepath)
+            # Proceed if the modification timestamp and filesize match
+            if (mtime == f.modified and size == f.size):
+                if (not os.path.exists(dest_dir)):
+                    # print "making directory %s" % (dest_dir)
+                    os.makedirs(dest_dir)
+                print "Backing up %s" % (full_filepath)
+                current_size = current_size + f.size
+                shutil.copy2(full_filepath,dest_filepath)
+                # Add log entry for hash
+                # print "  hash: %s" % f.hash
+                # Write CSV entry for file
+                csv_writer.writerow( (f.filename.encode('utf-8'), f.hash, f.size, f.modified))
+                backed_up.append(f)
+                if (f not in backup_set):
+                    backup_set.add(f.hash)
+                    log_file.write(f.hash+"\n")
+            else :
+                print "file (%s) metadata has changed since inventory, ignoring." % (f)
+                backup_omitted.append(f)
+        else:
+                print "file (%s) no longer exists on disk, ignoring." % (f)
+                #backup_omitted.append(f)
     elif (backup_size - current_size <= backup_limit):
         print "Not enough room for more files, finishing up"
         backup_omitted.append(f)
         break
     else:
-        #print "(skipping large file: %s)" % f.filename
+        print "(skipping large file: %s)" % f.filename
         backup_omitted.append(f)
 print "===================="
 if (len(backed_up) > 0):
