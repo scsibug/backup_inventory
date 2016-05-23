@@ -20,7 +20,6 @@ class TestInitialize(unittest.TestCase):
         self.assertTrue(backupstore.is_db_empty(self.conn))
         backupstore.ready_database(self.conn)
         self.assertTrue(backupstore.is_db_current(self.conn))
-        
 
         
 if __name__ == '__main__':
