@@ -68,7 +68,11 @@ def initialize_database(conn):
                       iru=inventory_runs_t,
                       h=hashes_t,
                       fr=file_refs_t))
-    
+    # Create indexes
+    c.execute('CREATE UNIQUE INDEX hash_idx ON {h}(hash)'.format(h=hashes_t))
+    c.execute('CREATE UNIQUE INDEX file_idx ON {fr}(rel_path)'.format(fr=file_refs_t))
+    c.execute('CREATE INDEX inventory_items_hash ON {ii}(hash)'.format(ii=inventory_items_t))
+    c.execute('CREATE INDEX inventory_items_file ON {ii}(file)'.format(ii=inventory_items_t))
     # Path data (read from config file)
     # Snapshot of a path (files, modification dates, sizes, hash values)
     # Disk data (UUID, name)
