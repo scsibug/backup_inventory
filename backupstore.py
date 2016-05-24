@@ -54,6 +54,20 @@ def initialize_database(conn):
 
     c.execute('CREATE TABLE {h} (id INTEGER PRIMARY KEY,'
               'hash TEXT)'.format(h=hashes_t))
+
+    c.execute('CREATE TABLE {fr} (id INTEGER PRIMARY KEY,'
+              'rel_path TEXT)'.format(fr=file_refs_t))
+
+    c.execute('CREATE TABLE {ii} (id INTEGER PRIMARY KEY,'
+              'inventory_run INTEGER REFERENCES {iru}(id),'
+              'hash INTEGER REFERENCES {h}(id),'
+              'file INTEGER REFERENCES {fr}(id),'
+              'modified TIMESTAMP,'
+              'filesize INTEGER)'
+              .format(ii=inventory_items_t,
+                      iru=inventory_runs_t,
+                      h=hashes_t,
+                      fr=file_refs_t))
     
     # Path data (read from config file)
     # Snapshot of a path (files, modification dates, sizes, hash values)
